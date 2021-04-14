@@ -57,7 +57,7 @@ const char* fragmentSource = R"(
 	const vec3 La = vec3(0.8f, 0.8f, 0.8f);
 	const vec3 Le = vec3(0.5f, 0.5f, 0.5f);
 	const vec3 lightPosition = vec3(0.0f, 0.0f, 0.0f);
-	const vec3 ka = vec3(0.5f, 0.5f, 0.5f);
+	const vec3 ka = vec3(0.25f, 0.25f, 0.25f);
 	const float shininess = 600.0f;
 	const int maxdepth = 5;
 	const int step = 5;	// 5-ször lép át a portálokon
@@ -157,6 +157,33 @@ const char* fragmentSource = R"(
 			}
 		}
 		return hit;
+	}
+
+	const float A = 2;
+	const float B = 2;
+	const float C = 1;
+
+	float implicit_object(vec3 pos){
+		return A * pos.x * pos.x + B * pos.y * pos.y - C * pos.z;
+	}
+
+	vec3 get_worse_estimation(vec3 line_origin, vec3 line_normal) {
+		
+		return vec3(0, 0, 0);
+	}
+
+	vec3 get_better_estimation(vec3 current_estimation, vec3 line_origin, vec3 line_normal) {
+		return vec3(0, 0, 0);
+	}
+
+	vec3 tracing(vec3 line_origin, vec3 line_normal) {
+		float eps = 0;
+
+		vec3 current_estimation = get_worse_estimation(line_origin, line_normal);
+		while (abs(implicit_object(current_estimation)) > eps) {
+			current_estimation = get_better_estimation(current_estimation, line_origin, line_normal);
+		}
+		return current_estimation;
 	}
 
 	Hit intersectMirascope(Ray ray, Hit hit) {
