@@ -163,35 +163,17 @@ const char* fragmentSource = R"(
 	const float B = 2;
 	const float C = 1;
 
-	float implicit_object(vec3 pos){
-		return A * pos.x * pos.x + B * pos.y * pos.y - C * pos.z;
-	}
-
-	vec3 get_worse_estimation(vec3 line_origin, vec3 line_normal) {
-		
-		return vec3(0, 0, 0);
-	}
-
-	vec3 get_better_estimation(vec3 current_estimation, vec3 line_origin, vec3 line_normal) {
-		return vec3(0, 0, 0);
-	}
-
-	vec3 tracing(vec3 line_origin, vec3 line_normal) {
-		float eps = 0;
-
-		vec3 current_estimation = get_worse_estimation(line_origin, line_normal);
-		while (abs(implicit_object(current_estimation)) > eps) {
-			current_estimation = get_better_estimation(current_estimation, line_origin, line_normal);
-		}
-		return current_estimation;
-	}
-
 	Hit intersectMirascope(Ray ray, Hit hit) {
-		const float f = 0.25f;		// focal distance
+		const float f = 0.3;		// focal distance
+
+		float x = ray.start.x + ray.dir.x * hit.t;
+		float y = ray.start.y + ray.dir.y * hit.t;
+		float z = ray.start.z + ray.dir.z * hit.t;
 		
-		float a = dot(ray.dir.xy, ray.dir.xy);
-		float b = dot(ray.dir.xy, ray.start.xy) * 2 - 4 * f * ray.dir.z;
-		float c = dot(ray.start.xy, ray.start.xy) - 4 * f * ray.start.z;
+		float a = A * ray.dir.x * ray.dir.x + B * ray.dir.y * ray.dir.y;
+		float b = 2 * A * ray.start.x * ray.dir.x + 2 * B * ray.start.y * ray.dir.y - C * ray.dir.z;
+		float c = A * ray.start.x * ray.start.x + B * ray.start.y * ray.start.y - C * ray.start.z;
+		
 		hit = solveQuadratic(a, b, c, ray, hit, 0, f/2, 2 * f);
 		return hit;
 	}
@@ -207,8 +189,8 @@ const char* fragmentSource = R"(
 
 	vec3 trace(Ray ray) {
 		vec3 outRadiance = vec3(0, 0, 0);
-		int d = 0, s = 0;
-		while (d < maxdepth && s < step) {
+		int currentDepth = 0, currentStep = 0;
+		while (currentDepth < maxdepth && currentStep < step) {
 			Hit hit = firstIntersect(ray);
 			if (hit.t < 0) break;
 			if (hit.mat == 0) {
@@ -227,16 +209,16 @@ const char* fragmentSource = R"(
 			if (hit.mat == 1) {
 				ray.start = -1 * (hit.position + hit.normal * epsilon);
 				ray.dir = -1 * reflect(ray.dir, hit.normal);
-				d = 0;
-				s++;
+				currentDepth = 0;
+				currentStep++;
 			}
 			// mirror reflection
 			if (hit.mat == 2) {
 				ray.weight *= F0 + (vec3(1, 1, 1) - F0) * pow(dot(-ray.dir, hit.normal), 5);
 				ray.start = hit.position + hit.normal * epsilon;
 				ray.dir = reflect(ray.dir, hit.normal);
-				s = -1 * s;
-				d++;
+				currentStep = -1 * currentStep;
+				currentDepth++;
 			}
 		}
 		outRadiance += ray.weight * La;
@@ -263,7 +245,7 @@ struct Camera {
 	float currentAngle = 0;
 	float periodTime = 10000;
 
-	Camera() : eye(0, 1, 1), pvup(0, 0, 1), lookat(0, 0, 0) { set(); }
+	Camera() : eye(0, 0.7, 1), pvup(0, 0, 1), lookat(0, 0, 0) { set(); }
 	void set() {
 		vec3 w = eye - lookat;
 		float f = length(w);
@@ -272,7 +254,7 @@ struct Camera {
 	}
 	void Animate(float dt) {
 		float r = sqrtf(eye.x * eye.x + eye.y * eye.y);
-		currentAngle += dt * 2 * M_PI / periodTime; // szogsebesseg: 2PI/T
+		currentAngle += dt * 2.0f * (float)M_PI / periodTime; // szogsebesseg: 2PI/T
 		eye = vec3(r * cos(currentAngle) + lookat.x, r * sin(currentAngle) + lookat.y, eye.z);
 		set();
 	}
