@@ -66,7 +66,7 @@ const char* fragmentSource = R"(
 	struct Hit {
 		float t;
 		vec3 position, normal;
-		int mat;	//  smooth?
+		int mat;
 	};
 
 	struct Ray {
@@ -115,14 +115,14 @@ const char* fragmentSource = R"(
 	}
 
 	Hit intersectConvexPolyhedron(Ray ray, Hit hit, float scale) {
-		for(int i = 0; i < objFaces; i++) { // dodecahedron
+		for(int i = 0; i < objFaces; i++) {
 			vec3 p1, normal;
 			getWallPlane(i, scale, p1, normal);
 			float ti = abs(dot(normal, ray.dir)) > epsilon ? dot(p1 - ray.start, normal) / dot(normal, ray.dir) : -1;
 			if (ti <= epsilon || (ti > hit.t && hit.t > 0)) continue;
 			vec3 pintersect = ray.start + ray.dir * ti;
 			bool outsideOfTheRoom = false;
-			for (int j = 0; j < objFaces; j++) { // check all other half spaces whether point is inside
+			for (int j = 0; j < objFaces; j++) {
 				if (i == j) continue;
 				vec3 p11, n;
 				getWallPlane(j, scale, p11, n);
@@ -187,7 +187,7 @@ const char* fragmentSource = R"(
 	const float C = 0.9f;
 
 	Hit intersectObject(Ray ray, Hit hit) {
-		const float f = 0.3;		// focal distance
+		const float f = 0.3;
 		
 		float a = A * ray.dir.x * ray.dir.x + B * ray.dir.y * ray.dir.y;
 		float b = 2 * A * ray.start.x * ray.dir.x + 2 * B * ray.start.y * ray.dir.y - C * ray.dir.z;
@@ -201,7 +201,7 @@ const char* fragmentSource = R"(
 		Hit bestHit;
 		bestHit.t = -1;
 		bestHit = intersectObject(ray, bestHit);
-		bestHit = intersectConvexPolyhedron(ray, bestHit, 1.2f); // (ray, hit, scale)
+		bestHit = intersectConvexPolyhedron(ray, bestHit, 1.2f);
 		if (dot(ray.dir, bestHit.normal) > 0) bestHit.normal = bestHit.normal * (-1);
 		return bestHit;
 	}
@@ -231,7 +231,6 @@ const char* fragmentSource = R"(
 				currentDepth = 0;
 				currentStep++;
 			}
-			// mirror reflection
 			if (hit.mat == 2) {
 				ray.weight *= F0 + (vec3(1, 1, 1) - F0) * pow(1 - dot(-ray.dir, hit.normal), 5);
 				ray.start = hit.position + hit.normal * epsilon;
@@ -244,7 +243,7 @@ const char* fragmentSource = R"(
 		return outRadiance;
 	}
 
-	in vec3 p; // point on camera window corresponding to the pixel
+	in vec3 p;
 	out vec4 fragmentColor;
 
 	void main() {
@@ -256,9 +255,7 @@ const char* fragmentSource = R"(
 	}
 )";
 
-//---------------------------
 struct Camera {
-	//---------------------------
 	vec3 eye, lookat, right, pvup, rvup;
 	float fov = 45 * (float)M_PI / 180;
 	float currentAngle = 0;
