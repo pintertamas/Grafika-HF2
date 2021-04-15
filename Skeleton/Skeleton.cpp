@@ -54,6 +54,8 @@ const char* fragmentSource = R"(
 	#version 330
     precision highp float;
 
+	const float PI =  3.14159265359f;
+
 	const vec3 La = vec3(0.8f, 0.8f, 0.8f);
 	const vec3 Le = vec3(0.8f, 0.8f, 0.8f);
 	const vec3 lightPosition = vec3(0.0f, 0.0f, 0.0f);
@@ -143,7 +145,7 @@ const char* fragmentSource = R"(
 
 	float getHitT(vec3 p1, vec3 p2, float t1, float t2, float limit) {
 		float t;
-		if (length(p1) > limit && length(p2) > limit) return -1;
+		if (length(p1) > limit && length(p2) > limit) return -1.0f;
 		else if (length(p1) > limit) return t2;
 		else if (length(p2) > limit) return t1;
 		else return min(t1, t2);
@@ -228,7 +230,6 @@ const char* fragmentSource = R"(
 				ray.weight *= F0 + (vec3(1, 1, 1) - F0) * pow(1 - dot(-ray.dir, hit.normal), 5);
 				ray.start = hit.position + hit.normal * epsilon;
 				ray.dir = reflect(ray.dir, hit.normal);
-				const float PI =  3.14159265359f;
 				ray.start = rotate(ray.dir, quaternion(2 * PI / 5, ray.dir));
 				currentStep = -1 * currentStep;
 				currentDepth++;
