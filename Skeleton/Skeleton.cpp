@@ -97,7 +97,6 @@ const char* fragmentSource = R"(
 		p3 = p1 + normal;
 		normal = cross(p2 - p1, p3 - p1);
 		if (dot(p1, normal) < 0) normal = -normal;
-
 		p = p1 * scale;
 	}
 
@@ -142,9 +141,12 @@ const char* fragmentSource = R"(
 		return hit;
 	}
 
-	bool isNotInsideSphere(vec3 p, float limit) {
-		float distance = sqrt(p.x * p.x + p.y * p.y + p.z * p.z);
-		return distance > limit;
+	float getHitT(vec3 p1, vec3 p2, float t1, float t2, float limit) {
+		float t;
+		if (length(p1) > limit && length(p2) > limit) return -1;
+		else if (length(p1) > limit) return t2;
+		else if (length(p2) > limit) return t1;
+		else return min(t1, t2);
 	}
 
 	Hit solveQuadratic(float a, float b, float c, Ray ray, Hit hit, float limit) {
@@ -155,16 +157,7 @@ const char* fragmentSource = R"(
             vec3 p1 = ray.start + ray.dir * t1;
             float t2 = (-b - sqrt_discr) / 2.0f / a;
             vec3 p2 = ray.start + ray.dir * t2;
-            if (length(p1) > 0.3 && length(p2) > 0.3) {
-                hit.t = -1;
-                return hit;
-            } else if (length(p1) > 0.3) {
-                hit.t = t2;
-            } else if (length(p2) > 0.3) {
-                hit.t = t1;
-            } else {
-                hit.t = min(t1, t2);
-            }
+            hit.t = getHitT(p1, p2, t1, t2, limit);
             hit.position = ray.start + ray.dir * hit.t;
             hit.mat = 2;
         }
