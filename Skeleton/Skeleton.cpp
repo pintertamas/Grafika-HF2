@@ -62,6 +62,15 @@ const char* fragmentSource = R"(
 	const int maxdepth = 5;
 	const int step = 5;
 	const float epsilon = 0.05f;
+	
+	const float A = 0.1f;
+	const float B = 2.1f;
+	const float C = 0.9f;
+	
+	const int objFaces = 12;
+	uniform vec3 wEye, v[20]; 
+	uniform int planes[objFaces * 5];
+	uniform vec3 kd[2], ks[2], F0;
 
 	struct Hit {
 		float t;
@@ -89,11 +98,6 @@ const char* fragmentSource = R"(
 		vec4 qr = qmul(qmul(q, vec4(u.x, u.y, u.z, 0)), qinv);
 		return vec3(qr.x, qr.y, qr.z);
 	}
-
-	const int objFaces = 12;
-	uniform vec3 wEye, v[20]; 
-	uniform int planes[objFaces * 5];
-	uniform vec3 kd[2], ks[2], F0;
 
 	void getWallPlane(int i, float scale, out vec3 p, out vec3 normal) {
 		vec3 p1 = v[planes[5 * i] - 1], p2 = v[planes[5 * i + 1] - 1], p3 = v[planes[5 * i + 2] - 1];
@@ -160,7 +164,7 @@ const char* fragmentSource = R"(
 		return distance > limit;
 	}
 
-	Hit solveQuadratic(float a, float b, float c, Ray ray, Hit hit, float limit, float normz) {
+	Hit solveQuadratic(float a, float b, float c, Ray ray, Hit hit, float limit) {
 		float discr = b * b - 4.0f * a * c;
 		if (discr >= 0) {
 			float sqrt_discr = sqrt(discr);
@@ -171,29 +175,23 @@ const char* fragmentSource = R"(
 			vec3 p2 = ray.start + ray.dir * t2;
 			if (isNotInsideSphere(p2, limit)) t2 = -1;
 			
-			if (t2 >= 0 && (distance(ray.start, p1) > distance(ray.start, p2) || t1 < 0)) { t1 = t2; p1 = p2; }
-			if (t1 >= 0 && (distance(ray.start, p1) < distance(ray.start, hit.position) || hit.t < 0)) {
+			if (t2 >= 0 && (distance(ray.start, p1) > distance(ray.start, p2)) || t1 < 0) { t1 = t2; p1 = p2; }
+			if (t1 >= 0 && (distance(ray.start, p1) < distance(ray.start, hit.position)) || hit.t < 0) {
 				hit.t = t1;
 				hit.position = ray.start + ray.dir * hit.t;
-				hit.normal = normalize(vec3(-hit.position.x, -hit.position.y, normz));
+				hit.normal = normalize(vec3(-hit.position.x, -hit.position.y, 1));
 				hit.mat = 2;
 			}
 		}
+		//hit.normal = vec3(-2 * A * hit.position.x / C, -2 * B * hit.position.y / C, 1);
 		return hit;
 	}
 
-	const float A = 2.1f;
-	const float B = 2.1f;
-	const float C = 0.9f;
-
 	Hit intersectObject(Ray ray, Hit hit) {
-		const float f = 0.3;
-		
 		float a = A * ray.dir.x * ray.dir.x + B * ray.dir.y * ray.dir.y;
 		float b = 2 * A * ray.start.x * ray.dir.x + 2 * B * ray.start.y * ray.dir.y - C * ray.dir.z;
 		float c = A * ray.start.x * ray.start.x + B * ray.start.y * ray.start.y - C * ray.start.z;
-		
-		hit = solveQuadratic(a, b, c, ray, hit, 0.3, 2 * f);
+		hit = solveQuadratic(a, b, c, ray, hit, 0.3);
 		return hit;
 	}
 
