@@ -62,7 +62,7 @@ const char* fragmentSource = R"(
 	const vec3 ka = vec3(0.3f, 0.3f, 0.3f);
 	const float shininess = 10.0f;
 	const int maxdepth = 5;
-	const int step = 5;
+	const int portalStep = 5;
 	const float epsilon = 0.05f;
 	
 	const float A = 3.1f;
@@ -84,15 +84,15 @@ const char* fragmentSource = R"(
 		vec3 start, dir, weight;
 	};
 
-	void getWallPlane(int i, float scale, out vec3 p, out vec3 normal) {
+	void intersectEdge(int i, float scale, out vec3 p, out vec3 normal) {
 		vec3 p1 = v[planes[5 * i] - 1], p2 = v[planes[5 * i + 1] - 1], p3 = v[planes[5 * i + 2] - 1];
 		normal = cross(p2 - p1, p3 - p1);
 		if (dot(p1, normal) < 0) normal = -normal;
 		p = p1 * scale;
 	}
 
-	void getPortalPlane(int i, int j, float scale, out vec3 p, out vec3 normal) {
-		vec3 p1 = v[planes[5 * i + j % 5] - 1], p2 = v[planes[5 * i + (1 + j) % 5] - 1], p3 = v[planes[5 * i + (2 + j) % 5] - 1];
+	void intersectPortal(int i, int j, float scale, out vec3 p, out vec3 normal) {
+		vec3 p1 = v[planes[5 * i + j % 5] - 1], p2 = v[planes[5 * i + (j + 1) % 5] - 1], p3 = v[planes[5 * i + (j + 2) % 5] - 1];
 		normal = cross(p2 - p1, p3 - p1);
 		if (dot(p1, normal) < 0) normal = -normal;
 		
@@ -105,33 +105,31 @@ const char* fragmentSource = R"(
 	Hit intersectConvexPolyhedron(Ray ray, Hit hit, float scale) {
 		for(int i = 0; i < objFaces; i++) {
 			vec3 p1, normal;
-			getWallPlane(i, scale, p1, normal);
+			intersectEdge(i, scale, p1, normal);
 			float ti = abs(dot(normal, ray.dir)) > epsilon ? dot(p1 - ray.start, normal) / dot(normal, ray.dir) : -1;
 			if (ti <= epsilon || (ti > hit.t && hit.t > 0)) continue;
 			vec3 pintersect = ray.start + ray.dir * ti;
 			bool outsideOfTheRoom = false;
 			for (int j = 0; j < objFaces; j++) {
 				if (i == j) continue;
-				vec3 p11, n;
-				getWallPlane(j, scale, p11, n);
-				if (dot(n, pintersect - p11) > 0) {
+				vec3 hitPosition1, n;
+				intersectEdge(j, scale, hitPosition1, n);
+				if (dot(n, pintersect - hitPosition1) > 0) {
 					outsideOfTheRoom = true;
 					break;
 				}
 			}
-
 			if (!outsideOfTheRoom) {
 				bool outsideOfThePortal = false;
 
-				for (int j = 0; j < step; j++) {
-					vec3 p12, n2;
-					getPortalPlane(i, j, scale * 0.9, p12, n2);
-					if (dot(n2, pintersect - p12) > 0) {
+				for (int j = 0; j < portalStep; j++) {
+					vec3 hitPosition2, n2;
+					intersectPortal(i, j, scale * 0.9, hitPosition2, n2);
+					if (dot(n2, pintersect - hitPosition2) > 0) {
 						outsideOfThePortal = true;
 						break;
 					}
 				}
-
 				hit.t = ti;
 				hit.position = pintersect;
 				hit.normal = normalize(normal);
@@ -204,7 +202,7 @@ const char* fragmentSource = R"(
 	vec3 trace(Ray ray) {
 		vec3 outRadiance = vec3(0, 0, 0);
 		int currentDepth = 0, currentStep = 0;
-		while (currentDepth < maxdepth && currentStep < step) {
+		while (currentDepth < maxdepth && currentStep < portalStep) {
 			Hit hit = firstIntersect(ray);
 			if (hit.t < 0) break;
 			if (hit.mat == 0) {
