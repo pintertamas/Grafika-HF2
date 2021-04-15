@@ -55,10 +55,10 @@ const char* fragmentSource = R"(
     precision highp float;
 
 	const vec3 La = vec3(0.8f, 0.8f, 0.8f);
-	const vec3 Le = vec3(0.5f, 0.5f, 0.5f);
+	const vec3 Le = vec3(0.8f, 0.8f, 0.8f);
 	const vec3 lightPosition = vec3(0.0f, 0.0f, 0.0f);
-	const vec3 ka = vec3(0.25f, 0.25f, 0.25f);
-	const float shininess = 600.0f;
+	const vec3 ka = vec3(0.3f, 0.3f, 0.3f);
+	const float shininess = 10.0f;
 	const int maxdepth = 5;
 	const int step = 5;	// 5-ször lép át a portálokon
 	const float epsilon = 0.05f; // megnovelem hogy felul is mukodjon a tukrozodes
@@ -73,6 +73,23 @@ const char* fragmentSource = R"(
 		vec3 start, dir, weight;
 	};
 
+	vec4 qmul(vec4 q1, vec4 q2) {
+		vec3 d1 = vec3(q1.x, q1.y, q1.z);
+		vec3 d2 = vec3(q2.x, q2.y, q2.z);
+		return vec4(d2 * q1.w + d1 * q2.w + cross(d1, d2), q1.w * q2.w - dot(d1, d2));
+	}
+
+	vec4 quaternion(float angle, vec3 axis) {
+		axis = normalize(axis) * sin(angle / 2);
+		return vec4(axis.x, axis.y, axis.z, cos(angle / 2));
+	}
+
+	vec3 rotate(vec3 u, vec4 q) {
+		vec4 qinv = vec4(-q.x, -q.y, -q.z, q.w);
+		vec4 qr = qmul(qmul(q, vec4(u.x, u.y, u.z, 0)), qinv);
+		return vec3(qr.x, qr.y, qr.z);
+	}
+
 	const int objFaces = 12;
 	uniform vec3 wEye, v[20]; 
 	uniform int planes[objFaces * 5];
@@ -81,20 +98,20 @@ const char* fragmentSource = R"(
 	void getWallPlane(int i, float scale, out vec3 p, out vec3 normal) {
 		vec3 p1 = v[planes[5 * i] - 1], p2 = v[planes[5 * i + 1] - 1], p3 = v[planes[5 * i + 2] - 1];
 		normal = cross(p2 - p1, p3 - p1);
-		if (dot(p1, normal) < 0) normal = -normal; // normal vector should point outwards
-		p = p1 * scale + vec3(0, 0, 0);
+		if (dot(p1, normal) < 0) normal = -normal;
+		p = p1 * scale;
 	}
 
 	void getPortalPlane(int i, int j, float scale, out vec3 p, out vec3 normal) {	// j: hanyadik pontja az adott plane-nek
-		vec3 p1 = v[planes[5 * i + j % 5] - 1], p2 = v[planes[5 * i + (1 + j) % 5] - 1], tmpP3 = v[planes[5 * i + (2 + j) % 5] - 1];
-		vec3 tmpNormal = cross(p2 - p1, tmpP3 - p1);
-		if (dot(p1, tmpNormal) < 0) tmpNormal = -tmpNormal; // normal vector should point outwards
+		vec3 p1 = v[planes[5 * i + j % 5] - 1], p2 = v[planes[5 * i + (1 + j) % 5] - 1], p3 = v[planes[5 * i + (2 + j) % 5] - 1];
+		normal = cross(p2 - p1, p3 - p1);
+		if (dot(p1, normal) < 0) normal = -normal;
 		
-		vec3 p3 = p1 + tmpNormal;
+		p3 = p1 + normal;
 		normal = cross(p2 - p1, p3 - p1);
 		if (dot(p1, normal) < 0) normal = -normal;
 
-		p = p1 * scale + vec3(0, 0, 0);
+		p = p1 * scale;
 	}
 
 	Hit intersectConvexPolyhedron(Ray ray, Hit hit, float scale) {
@@ -138,18 +155,24 @@ const char* fragmentSource = R"(
 		return hit;
 	}
 
-	Hit solveQuadratic(float a, float b, float c, Ray ray, Hit hit, float zmin, float zmax, float normz) {
+	bool isNotInsideSphere(vec3 p, float limit) {
+		float distance = sqrt(p.x * p.x + p.y * p.y + p.z * p.z);
+		return distance > limit;
+	}
+
+	Hit solveQuadratic(float a, float b, float c, Ray ray, Hit hit, float xyzLimit, float normz) {
 		float discr = b * b - 4.0f * a * c;
 		if (discr >= 0) {
 			float sqrt_discr = sqrt(discr);
 			float t1 = (-b + sqrt_discr) / 2.0f / a;
-			vec3 p = ray.start + ray.dir * t1;
-			if (p.z > zmax || p.z < zmin) t1 = -1;
+			vec3 p1 = ray.start + ray.dir * t1;
+			if (isNotInsideSphere(p1, 0.3f)) t1 = -1;
 			float t2 = (-b - sqrt_discr) / 2.0f / a;
-			p = ray.start + ray.dir * t2;
-			if (p.z > zmax || p.z < zmin) t2 = -1;
-			if (t2 > 0 && (t2 < t1 || t1 < 0)) t1 = t2;
-			if (t1 > 0 && (t1 < hit.t || hit.t < 0)) {
+			vec3 p2 = ray.start + ray.dir * t2;
+			if (isNotInsideSphere(p2, 0.3f)) t2 = -1;
+			
+			if (t2 >= 0 && (distance(ray.start, p1) > distance(ray.start, p2) || t1 < 0)) { t1 = t2; p1 = p2; }
+			if (t1 >= 0 && (distance(ray.start, p1) < distance(ray.start, hit.position) || hit.t < 0)) {
 				hit.t = t1;
 				hit.position = ray.start + ray.dir * hit.t;
 				hit.normal = normalize(vec3(-hit.position.x, -hit.position.y, normz));
@@ -159,29 +182,25 @@ const char* fragmentSource = R"(
 		return hit;
 	}
 
-	const float A = 2;
-	const float B = 2;
-	const float C = 1;
+	const float A = 2.1f;
+	const float B = 2.1f;
+	const float C = 0.9f;
 
-	Hit intersectMirascope(Ray ray, Hit hit) {
+	Hit intersectObject(Ray ray, Hit hit) {
 		const float f = 0.3;		// focal distance
-
-		float x = ray.start.x + ray.dir.x * hit.t;
-		float y = ray.start.y + ray.dir.y * hit.t;
-		float z = ray.start.z + ray.dir.z * hit.t;
 		
 		float a = A * ray.dir.x * ray.dir.x + B * ray.dir.y * ray.dir.y;
 		float b = 2 * A * ray.start.x * ray.dir.x + 2 * B * ray.start.y * ray.dir.y - C * ray.dir.z;
 		float c = A * ray.start.x * ray.start.x + B * ray.start.y * ray.start.y - C * ray.start.z;
 		
-		hit = solveQuadratic(a, b, c, ray, hit, 0, f/2, 2 * f);
+		hit = solveQuadratic(a, b, c, ray, hit, 0.3, 2 * f);
 		return hit;
 	}
 
 	Hit firstIntersect(Ray ray) {
 		Hit bestHit;
 		bestHit.t = -1;
-		bestHit = intersectMirascope(ray, bestHit);
+		bestHit = intersectObject(ray, bestHit);
 		bestHit = intersectConvexPolyhedron(ray, bestHit, 1.2f); // (ray, hit, scale)
 		if (dot(ray.dir, bestHit.normal) > 0) bestHit.normal = bestHit.normal * (-1);
 		return bestHit;
@@ -214,7 +233,7 @@ const char* fragmentSource = R"(
 			}
 			// mirror reflection
 			if (hit.mat == 2) {
-				ray.weight *= F0 + (vec3(1, 1, 1) - F0) * pow(dot(-ray.dir, hit.normal), 5);
+				ray.weight *= F0 + (vec3(1, 1, 1) - F0) * pow(1 - dot(-ray.dir, hit.normal), 5);
 				ray.start = hit.position + hit.normal * epsilon;
 				ray.dir = reflect(ray.dir, hit.normal);
 				currentStep = -1 * currentStep;
@@ -269,7 +288,7 @@ Camera camera;
 bool animate = true;
 float timeAtLastFrame = 0;
 
-float F(float n, float k) { return ((n - 1) * (n - 1) + k * k) / ((n + 1) * (n + 1) + k * k); }
+float fresnel(float n, float k) { return ((n - 1) * (n - 1) + k * k) / ((n + 1) * (n + 1) + k * k); }
 
 // Initialization, create an OpenGL context
 void onInitialization() {
@@ -284,7 +303,6 @@ void onInitialization() {
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, NULL);
 
 	shader.create(vertexSource, fragmentSource, "fragmentColor");
-
 
 	const float g = 0.618f; const float G = 1.618f;
 	std::vector<vec3> v = {
@@ -315,10 +333,10 @@ void onInitialization() {
 	for (int i = 0; i < planes.size(); i++) shader.setUniform(planes[i], "planes[" + std::to_string(i) + "]");
 
 	shader.setUniform(vec3(0.4f, 0.78f, 1.0f), "kd[0]");
-	shader.setUniform(vec3(1.0f, 0.0f, 0.0f), "kd[1]");
+	shader.setUniform(vec3(0.5f, 0.5f, 0.5f), "kd[1]");
 	shader.setUniform(vec3(5, 5, 5), "ks[0]");
 	shader.setUniform(vec3(1, 1, 1), "ks[1]");
-	shader.setUniform(vec3(F(0.17, 3.1), F(0.35, 2.7), F(1.5, 1.9)), "F0");
+	shader.setUniform(vec3(fresnel(0.17, 3.1), fresnel(0.35, 2.7), fresnel(1.5, 1.9)), "F0");
 }
 
 // Window has become invalid: Redraw
