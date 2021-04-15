@@ -63,8 +63,8 @@ const char* fragmentSource = R"(
 	const int step = 5;
 	const float epsilon = 0.05f;
 	
-	const float A = 0.1f;
-	const float B = 2.1f;
+	const float A = 3.1f;
+	const float B = 3.1f;
 	const float C = 0.9f;
 	
 	const int objFaces = 12;
@@ -81,23 +81,6 @@ const char* fragmentSource = R"(
 	struct Ray {
 		vec3 start, dir, weight;
 	};
-
-	vec4 qmul(vec4 q1, vec4 q2) {
-		vec3 d1 = vec3(q1.x, q1.y, q1.z);
-		vec3 d2 = vec3(q2.x, q2.y, q2.z);
-		return vec4(d2 * q1.w + d1 * q2.w + cross(d1, d2), q1.w * q2.w - dot(d1, d2));
-	}
-
-	vec4 quaternion(float angle, vec3 axis) {
-		axis = normalize(axis) * sin(angle / 2);
-		return vec4(axis.x, axis.y, axis.z, cos(angle / 2));
-	}
-
-	vec3 rotate(vec3 u, vec4 q) {
-		vec4 qinv = vec4(-q.x, -q.y, -q.z, q.w);
-		vec4 qr = qmul(qmul(q, vec4(u.x, u.y, u.z, 0)), qinv);
-		return vec3(qr.x, qr.y, qr.z);
-	}
 
 	void getWallPlane(int i, float scale, out vec3 p, out vec3 normal) {
 		vec3 p1 = v[planes[5 * i] - 1], p2 = v[planes[5 * i + 1] - 1], p3 = v[planes[5 * i + 2] - 1];
@@ -165,27 +148,29 @@ const char* fragmentSource = R"(
 	}
 
 	Hit solveQuadratic(float a, float b, float c, Ray ray, Hit hit, float limit) {
-		float discr = b * b - 4.0f * a * c;
-		if (discr >= 0) {
-			float sqrt_discr = sqrt(discr);
-			float t1 = (-b + sqrt_discr) / 2.0f / a;
-			vec3 p1 = ray.start + ray.dir * t1;
-			if (isNotInsideSphere(p1, limit)) t1 = -1;
-			float t2 = (-b - sqrt_discr) / 2.0f / a;
-			vec3 p2 = ray.start + ray.dir * t2;
-			if (isNotInsideSphere(p2, limit)) t2 = -1;
-			
-			if (t2 >= 0 && (distance(ray.start, p1) > distance(ray.start, p2)) || t1 < 0) { t1 = t2; p1 = p2; }
-			if (t1 >= 0 && (distance(ray.start, p1) < distance(ray.start, hit.position)) || hit.t < 0) {
-				hit.t = t1;
-				hit.position = ray.start + ray.dir * hit.t;
-				hit.normal = normalize(vec3(-hit.position.x, -hit.position.y, 1));
-				hit.mat = 2;
-			}
-		}
-		//hit.normal = vec3(-2 * A * hit.position.x / C, -2 * B * hit.position.y / C, 1);
-		return hit;
-	}
+        float discr = b * b - 4.0f * a * c;
+        if (discr >= 0) {
+            float sqrt_discr = sqrt(discr);
+            float t1 = (-b + sqrt_discr) / 2.0f / a;
+            vec3 p1 = ray.start + ray.dir * t1;
+            float t2 = (-b - sqrt_discr) / 2.0f / a;
+            vec3 p2 = ray.start + ray.dir * t2;
+            if (length(p1) > 0.3 && length(p2) > 0.3) {
+                hit.t = -1;
+                return hit;
+            } else if (length(p1) > 0.3) {
+                hit.t = t2;
+            } else if (length(p2) > 0.3) {
+                hit.t = t1;
+            } else {
+                hit.t = min(t1, t2);
+            }
+            hit.position = ray.start + ray.dir * hit.t;
+            hit.mat = 2;
+        }
+        hit.normal = normalize(vec3(-2 * A * hit.position.x / C, -2 * B * hit.position.y / C, 1));
+        return hit;
+    }
 
 	Hit intersectObject(Ray ray, Hit hit) {
 		float a = A * ray.dir.x * ray.dir.x + B * ray.dir.y * ray.dir.y;
@@ -202,6 +187,23 @@ const char* fragmentSource = R"(
 		bestHit = intersectConvexPolyhedron(ray, bestHit, 1.2f);
 		if (dot(ray.dir, bestHit.normal) > 0) bestHit.normal = bestHit.normal * (-1);
 		return bestHit;
+	}
+
+	vec4 qmul(vec4 q1, vec4 q2) {
+		vec3 d1 = vec3(q1.x, q1.y, q1.z);
+		vec3 d2 = vec3(q2.x, q2.y, q2.z);
+		return vec4(d2 * q1.w + d1 * q2.w + cross(d1, d2), q1.w * q2.w - dot(d1, d2));
+	}
+
+	vec4 quaternion(float angle, vec3 axis) {
+		axis = normalize(axis) * sin(angle / 2);
+		return vec4(axis.x, axis.y, axis.z, cos(angle / 2));
+	}
+
+	vec3 rotate(vec3 u, vec4 q) {
+		vec4 qinv = vec4(-q.x, -q.y, -q.z, q.w);
+		vec4 qr = qmul(qmul(q, vec4(u.x, u.y, u.z, 0)), qinv);
+		return vec3(qr.x, qr.y, qr.z);
 	}
 
 	vec3 trace(Ray ray) {
@@ -233,6 +235,8 @@ const char* fragmentSource = R"(
 				ray.weight *= F0 + (vec3(1, 1, 1) - F0) * pow(1 - dot(-ray.dir, hit.normal), 5);
 				ray.start = hit.position + hit.normal * epsilon;
 				ray.dir = reflect(ray.dir, hit.normal);
+				const float PI =  3.14159265359f;
+				ray.start = rotate(ray.dir, quaternion(2 * PI / 5, ray.dir));
 				currentStep = -1 * currentStep;
 				currentDepth++;
 			}
