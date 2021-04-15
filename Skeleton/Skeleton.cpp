@@ -1,5 +1,5 @@
 //=============================================================================================
-// Mintaprogram: Zöld háromszög. Ervenyes 2019. osztol.
+// Mintaprogram: Zold haromszog. Ervenyes 2019. osztol.
 //
 // A beadott program csak ebben a fajlban lehet, a fajl 1 byte-os ASCII karaktereket tartalmazhat, BOM kihuzando.
 // Tilos:
@@ -60,8 +60,8 @@ const char* fragmentSource = R"(
 	const vec3 ka = vec3(0.3f, 0.3f, 0.3f);
 	const float shininess = 10.0f;
 	const int maxdepth = 5;
-	const int step = 5;	// 5-ször lép át a portálokon
-	const float epsilon = 0.05f; // megnovelem hogy felul is mukodjon a tukrozodes
+	const int step = 5;
+	const float epsilon = 0.05f;
 
 	struct Hit {
 		float t;
@@ -102,7 +102,7 @@ const char* fragmentSource = R"(
 		p = p1 * scale;
 	}
 
-	void getPortalPlane(int i, int j, float scale, out vec3 p, out vec3 normal) {	// j: hanyadik pontja az adott plane-nek
+	void getPortalPlane(int i, int j, float scale, out vec3 p, out vec3 normal) {
 		vec3 p1 = v[planes[5 * i + j % 5] - 1], p2 = v[planes[5 * i + (1 + j) % 5] - 1], p3 = v[planes[5 * i + (2 + j) % 5] - 1];
 		normal = cross(p2 - p1, p3 - p1);
 		if (dot(p1, normal) < 0) normal = -normal;
@@ -160,16 +160,16 @@ const char* fragmentSource = R"(
 		return distance > limit;
 	}
 
-	Hit solveQuadratic(float a, float b, float c, Ray ray, Hit hit, float xyzLimit, float normz) {
+	Hit solveQuadratic(float a, float b, float c, Ray ray, Hit hit, float limit, float normz) {
 		float discr = b * b - 4.0f * a * c;
 		if (discr >= 0) {
 			float sqrt_discr = sqrt(discr);
 			float t1 = (-b + sqrt_discr) / 2.0f / a;
 			vec3 p1 = ray.start + ray.dir * t1;
-			if (isNotInsideSphere(p1, 0.3f)) t1 = -1;
+			if (isNotInsideSphere(p1, limit)) t1 = -1;
 			float t2 = (-b - sqrt_discr) / 2.0f / a;
 			vec3 p2 = ray.start + ray.dir * t2;
-			if (isNotInsideSphere(p2, 0.3f)) t2 = -1;
+			if (isNotInsideSphere(p2, limit)) t2 = -1;
 			
 			if (t2 >= 0 && (distance(ray.start, p1) > distance(ray.start, p2) || t1 < 0)) { t1 = t2; p1 = p2; }
 			if (t1 >= 0 && (distance(ray.start, p1) < distance(ray.start, hit.position) || hit.t < 0)) {
@@ -264,7 +264,7 @@ struct Camera {
 	float currentAngle = 0;
 	float periodTime = 10000;
 
-	Camera() : eye(0, 0.7, 1), pvup(0, 0, 1), lookat(0, 0, 0) { set(); }
+	Camera() : eye(0, 1, 1), pvup(0, 0, 1), lookat(0, 0, 0) { set(); }
 	void set() {
 		vec3 w = eye - lookat;
 		float f = length(w);
